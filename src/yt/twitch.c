@@ -10,6 +10,8 @@
 
 #define TWITCH_GQL "https://gql.twitch.tv/gql"
 #define TWITCH_CLIENT_ID "kimne78kx3ncx6brgo4mv6wki5h1ko"
+#define TWITCH_FIXED_CHANNEL "yayahuz"
+#define TWITCH_FIXED_DISPLAY "twich"
 
 static char g_last_error[160];
 
@@ -140,10 +142,12 @@ int tw_top_streams(volatile int *cancel, yt_video_list_t *out) {
     g_last_error[0] = '\0';
 
     const char *query =
-        "query { streams(first: 40) { edges { node { id title viewersCount "
-        "previewImageURL(width:320,height:180) broadcaster { login displayName } "
-        "game { displayName } } } } }";
+        "query Channel($login: String!) { user(login: $login) { login "
+        "displayName stream { title viewersCount "
+        "previewImageURL(width:320,height:180) game { displayName } } } }";
     json_t *variables = json_object();
+    json_object_set_new(variables, "login",
+                        json_string(TWITCH_FIXED_CHANNEL));
     http_buf_t response = {0};
     int ret = gql_post(query, variables, cancel, &response);
     json_decref(variables);
@@ -159,7 +163,20 @@ int tw_top_streams(volatile int *cancel, yt_video_list_t *out) {
         json_decref(root);
         return -1;
     }
-    walk_nodes(root, out);
+    json_t *data = json_object_get(root, "data");
+    json_t *user = data ? json_object_get(data, "user") : NULL;
+    if (json_is_object(user)) {
+        json_t *stream = json_object_get(user, "stream");
+        if (json_is_object(stream)) {
+            json_object_set(stream, "login",
+                            json_object_get(user, "login"));
+            json_object_set(stream, "displayName",
+                            json_object_get(user, "displayName"));
+            yt_video_t video = {0};
+            copy_node(stream, &video);
+            if (video.video_id[0]) out->items[out->count++] = video;
+        }
+    }
     json_decref(root);
     if (out->count == 0) set_error("Nenhuma live encontrada");
     return out->count > 0 ? 0 : -1;
@@ -167,38 +184,20 @@ int tw_top_streams(volatile int *cancel, yt_video_list_t *out) {
 
 int tw_search(const char *query_text, volatile int *cancel,
               yt_video_list_t *out, yt_channel_list_t *out_channels) {
+    (void)query_text;
     memset(out, 0, sizeof *out);
     if (out_channels) memset(out_channels, 0, sizeof *out_channels);
     g_last_error[0] = '\0';
-
-    const char *query =
-        "query Search($query: String!) { searchFor(userQuery: $query, "
-        "platform: \"WEB\") { channels { items { login displayName "
-        "stream { title viewersCount previewImageURL(width:320,height:180) "
-        "game { displayName } } } } } }";
-    json_t *variables = json_object();
-    json_object_set_new(variables, "query", json_string(query_text));
-    http_buf_t response = {0};
-    int ret = gql_post(query, variables, cancel, &response);
-    json_decref(variables);
-    if (ret != 0) { http_buf_free(&response); return ret; }
-
-    json_error_t error;
-    json_t *root = json_loads(response.data, 0, &error);
-    http_buf_free(&response);
-    if (!root) { set_error("Resposta Twitch invalida"); return -1; }
-    walk_nodes(root, out);
-    json_decref(root);
-    if (out->count == 0) set_error("Nenhuma live encontrada");
-    return out->count > 0 ? 0 : -1;
+    return tw_top_streams(cancel, out);
 }
 
 int tw_resolve_stream(const char *channel_login, volatile int *cancel,
                       yt_stream_t *out) {
+    (void)channel_login;
     memset(out, 0, sizeof *out);
     g_last_error[0] = '\0';
-    snprintf(out->channel, sizeof out->channel, "%s", channel_login);
-    snprintf(out->video_id, sizeof out->video_id, "%s", channel_login);
+    snprintf(out->channel, sizeof out->channel, "%s", "twich");
+    snprintf(out->video_id, sizeof out->video_id, "%s", "yayahuz");
     out->is_live = 1;
 
     const char *query =
@@ -207,7 +206,7 @@ int tw_resolve_stream(const char *channel_login, volatile int *cancel,
         "{platform: \"web\", playerBackend: \"mediaplayer\", playerType: \"site\"}) "
         "{ value signature } }";
     json_t *variables = json_object();
-    json_object_set_new(variables, "login", json_string(channel_login));
+    json_object_set_new(variables, "login", json_string("yayahuz"));
 
     http_buf_t response = {0};
     int ret = gql_post(query, variables, cancel, &response);
@@ -233,7 +232,7 @@ int tw_resolve_stream(const char *channel_login, volatile int *cancel,
     snprintf(out->hls_manifest, sizeof out->hls_manifest,
              "https://usher.ttvnw.net/api/channel/hls/%s.m3u8"
              "?sig=%s&token=%s&allow_source=true&allow_audio_only=true",
-             channel_login, signature, escaped ? escaped : "");
+             "yayahuz", signature, escaped ? escaped : "");
     free(escaped);
     json_decref(root);
     return 0;

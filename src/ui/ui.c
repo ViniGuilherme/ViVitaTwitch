@@ -351,7 +351,7 @@ void vt_ui_top_bar(const char *subtitle, int logged_in) {
     vt_ui_rect(16, 12, 34, 22, VT_COLOR_ACCENT);
     /* small play triangle in the logo block */
     vita2d_draw_line(28.0f, 17.0f, 28.0f, 29.0f, VT_COLOR_TEXT);
-    vt_ui_text(58, 10, VT_COLOR_TEXT, 1.0f, "ViVita Twitch");
+    vt_ui_text(58, 10, VT_COLOR_TEXT, 1.0f, "twich");
     if (subtitle && subtitle[0])
         vt_ui_text_clipped(190, 10, VT_COLOR_MUTED, 1.0f, 480, subtitle);
 
